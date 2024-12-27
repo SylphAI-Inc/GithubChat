@@ -13,7 +13,7 @@ from adalflow.core.types import (
     AssistantResponse,
 )
 from adalflow.core.string_parser import JsonParser
-from adalflow.components.retriever.faiss_retriever import FAISSRetriever
+from adalflow.components.retriever import QdrantRetriever
 from adalflow.components.data_process import (
     RetrieverOutputToContextStr,
     ToEmbeddings,
@@ -22,6 +22,7 @@ from adalflow.components.data_process import (
 from adalflow.utils import get_adalflow_default_root_path
 from adalflow.core.component import Component
 from config import configs
+from qdrant_client import QdrantClient, models
 
 
 rag_prompt_task_desc = r"""
@@ -115,12 +116,61 @@ class RAG(adal.Component):
             model_client=configs["embedder"]["model_client"](),
             model_kwargs=configs["embedder"]["model_kwargs"],
         )
-        # map the documents to embeddings
-        self.retriever = FAISSRetriever(
-            **configs["retriever"],
+
+        # Initialize Qdrant client and retriever
+        self.qdrant_client = QdrantClient(url="http://localhost:6333")
+        collection_name = "code_chunks"
+
+        # Create collection if it doesn't exist
+        try:
+            self.qdrant_client.get_collection(collection_name)
+        except Exception:
+            self.qdrant_client.create_collection(
+                collection_name=collection_name,
+                vectors_config=models.VectorParams(
+                    size=configs["embedder"]["model_kwargs"]["dimensions"],
+                    distance=models.Distance.COSINE,
+                )
+            )
+
+        # Upload documents to Qdrant if we have any
+        if self.transformed_docs:
+            points = []
+            for i, doc in enumerate(self.transformed_docs):
+                points.append(
+                    models.PointStruct(
+                        id=i,
+                        vector=doc.vector,
+                        payload={
+                            "text": doc.text,
+                            "file_path": doc.meta_data.get("file_path", ""),
+                            "type": doc.meta_data.get("type", ""),
+                            "is_code": doc.meta_data.get("is_code", True),
+                            "is_implementation": doc.meta_data.get("is_implementation", False)
+                        }
+                    )
+                )
+            
+            self.qdrant_client.upsert(
+                collection_name=collection_name,
+                points=points
+            )
+
+        # Set up Qdrant retriever
+        self.retriever = QdrantRetriever(
+            collection_name=collection_name,
+            client=self.qdrant_client,
             embedder=embedder,
-            documents=self.transformed_docs,
-            document_map_func=lambda doc: doc.vector,
+            top_k=configs["retriever"].get("top_k", 5),
+            text_key="text",
+            filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="is_code",
+                        match=models.MatchValue(value=True),
+                    )
+                ]
+            )
         )
         self.retriever_output_processors = RetrieverOutputToContextStr(deduplicate=True)
 
@@ -166,13 +216,6 @@ class RAG(adal.Component):
             search_query = query
 
         retrieved_documents = self.retriever(search_query)
-        # fill in the document
-        for i, retriever_output in enumerate(retrieved_documents):
-            retrieved_documents[i].documents = [
-                self.transformed_docs[doc_index]
-                for doc_index in retriever_output.doc_indices
-            ]
-
         context_str = self.retriever_output_processors(retrieved_documents)
         response = self.generate(query, context=context_str)
         

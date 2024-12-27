@@ -4,13 +4,14 @@ version = "0.1.0"
 description = ""
 authors = ["Li Yin <li.yin.gravity@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
 adalflow = { extras = ["openai"], version = "^0.2.6" }
 faiss-cpu = "^1.9.0.post1"
 streamlit = "^1.31.1"
-
+qdrant-client = "^1.7.0"
 
 [build-system]
 requires = ["poetry-core"]

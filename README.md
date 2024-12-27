@@ -4,7 +4,7 @@ A Retrieval-Augmented Generation (RAG) system for analyzing and understanding co
 
 ## Features
 
-- Code-aware responses using RAG
+- Code-aware responses using RAG with Qdrant vector database
 - Memory for maintaining conversation context
 - Support for multiple programming languages
 - Interactive web interface
@@ -17,7 +17,20 @@ A Retrieval-Augmented Generation (RAG) system for analyzing and understanding co
 poetry install
 ```
 
-2. Set up OpenAI API key:
+2. Set up Qdrant:
+
+Option 1: Using Docker (recommended):
+```bash
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+Option 2: Install locally:
+```bash
+curl -L https://github.com/qdrant/qdrant/releases/latest/download/qdrant-x86_64-unknown-linux-gnu.tar.gz | tar xvz
+./qdrant
+```
+
+3. Set up OpenAI API key:
 
 Create a `.streamlit/secrets.toml` file in your project root:
 ```bash
@@ -65,6 +78,14 @@ poetry run python rag.py
    - Ask questions about classes, functions, or code structure
    - View implementation details in expandable sections
 
+## Vector Database
+
+The system uses Qdrant as the vector database for efficient similarity search:
+- Documents are automatically uploaded to Qdrant collection "code_chunks"
+- Embeddings are created using OpenAI's text-embedding-3-small model
+- Retrieval is optimized for code implementation queries
+- Filters are applied to prioritize code over documentation
+
 ## Security Note
 
 - Never commit your `.streamlit/secrets.toml` file
@@ -77,3 +98,22 @@ poetry run python rag.py
 - "Show me the implementation of the Memory class"
 - "How is data processing handled?"
 - "Explain the initialization process"
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Ensure Docker is running before starting Qdrant
+   - Install Docker Desktop from https://www.docker.com/products/docker-desktop if not installed
+   - Start Docker Desktop
+   - Wait for Docker to be fully running before starting Qdrant
+
+2. Verify your OpenAI API key is correctly set in `.streamlit/secrets.toml`
+   - The key should be in quotes
+   - The file should be in the `.streamlit` directory
+   - The format should be exactly: `OPENAI_API_KEY = "your-key-here"`
+
+3. Make sure all ports are available:
+   - Qdrant uses port 6333
+   - Streamlit uses port 8503
+   - If either port is in use, you may need to stop other services or change the ports
