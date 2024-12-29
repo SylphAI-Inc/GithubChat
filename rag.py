@@ -14,45 +14,12 @@ from adalflow.core.types import (
 )
 from adalflow.core.string_parser import JsonParser
 from adalflow.components.retriever import QdrantRetriever
-from adalflow.components.data_process import (
-    RetrieverOutputToContextStr,
-    ToEmbeddings,
-    TextSplitter,
-)
+from adalflow.components.data_process import RetrieverOutputToContextStr
 from adalflow.utils import get_adalflow_default_root_path
 from adalflow.core.component import Component
-from config import configs
+from config import configs, prompts
+from data_pipeline import initialize_qdrant
 from qdrant_client import QdrantClient, models
-
-
-rag_prompt_task_desc = r"""
-You are a code analysis assistant that helps users understand code implementations.
-
-Your task is to analyze code and explain its functionality, focusing on:
-1. Implementation details and how the code works
-2. Class methods, their purposes, and interactions
-3. Key algorithms and data structures used
-4. Code patterns and architectural decisions
-
-When analyzing code:
-- Be concise and focus on the most important aspects
-- Explain the main purpose and key functionality first
-- Highlight critical methods and their roles
-- Keep explanations clear and to the point
-
-When asked about a specific class or function:
-1. Start with a one-sentence overview
-2. List the key methods and their purposes
-3. Explain the main functionality
-4. Keep the explanation focused and brief
-
-Previous conversation history is provided to maintain context of the discussion.
-Use the conversation history to provide more relevant and contextual answers about the code.
-
-Output JSON format:
-{
-    "answer": "Concise explanation of the code implementation",
-}"""
 
 
 class Memory(Component):
@@ -93,7 +60,7 @@ class Memory(Component):
 
 
 class RAG(adal.Component):
-    def __init__(self, index_path: str = None):
+    def __init__(self, index_path: str = None, prompt_type: str = "code_analysis"):
         super().__init__()
 
         # Initialize memory component
@@ -117,44 +84,10 @@ class RAG(adal.Component):
             model_kwargs=configs["embedder"]["model_kwargs"],
         )
 
-        # Initialize Qdrant client and retriever
-        self.qdrant_client = QdrantClient(url="http://localhost:6333")
+        # Initialize Qdrant using data pipeline function
         collection_name = "code_chunks"
-
-        # Create collection if it doesn't exist
-        try:
-            self.qdrant_client.get_collection(collection_name)
-        except Exception:
-            self.qdrant_client.create_collection(
-                collection_name=collection_name,
-                vectors_config=models.VectorParams(
-                    size=configs["embedder"]["model_kwargs"]["dimensions"],
-                    distance=models.Distance.COSINE,
-                )
-            )
-
-        # Upload documents to Qdrant if we have any
-        if self.transformed_docs:
-            points = []
-            for i, doc in enumerate(self.transformed_docs):
-                points.append(
-                    models.PointStruct(
-                        id=i,
-                        vector=doc.vector,
-                        payload={
-                            "text": doc.text,
-                            "file_path": doc.meta_data.get("file_path", ""),
-                            "type": doc.meta_data.get("type", ""),
-                            "is_code": doc.meta_data.get("is_code", True),
-                            "is_implementation": doc.meta_data.get("is_implementation", False)
-                        }
-                    )
-                )
-            
-            self.qdrant_client.upsert(
-                collection_name=collection_name,
-                points=points
-            )
+        vector_size = configs["embedder"]["model_kwargs"]["dimensions"]
+        self.qdrant_client = initialize_qdrant(collection_name, vector_size)
 
         # Set up Qdrant retriever
         self.retriever = QdrantRetriever(
@@ -169,14 +102,18 @@ class RAG(adal.Component):
                         key="is_code",
                         match=models.MatchValue(value=True),
                     )
-                ]
+                ] if prompt_type == "code_analysis" else []  # Only filter for code in code analysis mode
             )
         )
         self.retriever_output_processors = RetrieverOutputToContextStr(deduplicate=True)
 
+        # Get the appropriate prompt template
+        prompt_config = prompts.get(prompt_type, prompts["code_analysis"])
+        prompt_template = f"{prompt_config['system']}\n\n{prompt_config['format']}"
+
         self.generator = adal.Generator(
             prompt_kwargs={
-                "task_desc_str": rag_prompt_task_desc,
+                "task_desc_str": prompt_template,
             },
             model_client=configs["generator"]["model_client"](),
             model_kwargs=configs["generator"]["model_kwargs"],

@@ -1,33 +1,71 @@
 import adalflow as adal
-
-from adalflow.core.types import ModelClientType
-
+from adalflow.core.types import ModelClientType, Document, List
 from adalflow.components.data_process import TextSplitter, ToEmbeddings
 import os
 import subprocess
+import re
+import glob
 from adalflow.utils import get_adalflow_default_root_path
 from config import configs
+from adalflow.core.db import LocalDB
+from qdrant_client import QdrantClient, models
 
 
-# TODO: fix the delay in the data pipeline, chunk_size and chunk_overlap
+def initialize_qdrant(collection_name: str, vector_size: int) -> QdrantClient:
+    """Initialize Qdrant client and create collection if needed.
+    
+    Args:
+        collection_name (str): Name of the collection to create/use
+        vector_size (int): Size of the vectors (embedding dimensions)
+        
+    Returns:
+        QdrantClient: Initialized Qdrant client
+    """
+    client = QdrantClient(url="http://localhost:6333")
+    
+    # Create collection if it doesn't exist
+    try:
+        client.get_collection(collection_name)
+    except Exception:
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=models.VectorParams(
+                size=vector_size,
+                distance=models.Distance.COSINE,
+            )
+        )
+    
+    return client
 
 
-# def get_data_transformer():
-
-#     # batch_size = 100
-
-#     # splitter_config = {"split_by": "word", "chunk_size": 500, "chunk_overlap": 100}
-
-#     splitter = TextSplitter(**configs["text_splitter"])
-#     embedder = adal.Embedder(
-#         model_client=ModelClientType.OPENAI(),
-#         model_kwargs=configs["embedder"]["model_kwargs"],
-#     )
-#     embedder_transformer = ToEmbeddings(
-#         embedder, batch_size=configs["embedder"]["batch_size"]
-#     )
-#     data_transformer = adal.Sequential(splitter, embedder_transformer)
-#     return data_transformer
+def upload_to_qdrant(client: QdrantClient, collection_name: str, documents: List[Document]):
+    """Upload documents to Qdrant.
+    
+    Args:
+        client (QdrantClient): Qdrant client
+        collection_name (str): Name of the collection to upload to
+        documents (List[Document]): List of documents to upload
+    """
+    points = []
+    for i, doc in enumerate(documents):
+        points.append(
+            models.PointStruct(
+                id=i,
+                vector=doc.vector,
+                payload={
+                    "text": doc.text,
+                    "file_path": doc.meta_data.get("file_path", ""),
+                    "type": doc.meta_data.get("type", ""),
+                    "is_code": doc.meta_data.get("is_code", True),
+                    "is_implementation": doc.meta_data.get("is_implementation", False)
+                }
+            )
+        )
+    
+    client.upsert(
+        collection_name=collection_name,
+        points=points
+    )
 
 
 def prepare_data_pipeline():
@@ -113,27 +151,34 @@ def read_all_documents(path: str):
     ]
 
 
-from typing import List
-
-
-def transform_documents_and_save_to_db(documents: List[adal.Document], db_path: str):
+def transform_documents_and_save_to_db(documents: List[Document], db_path: str, use_qdrant: bool = True):
     """
-    Transforms a list of documents and saves them to a local database.
+    Transforms a list of documents and saves them to a database.
 
     Args:
         documents (list): A list of `Document` objects.
         db_path (str): The path to the local database file.
+        use_qdrant (bool): Whether to also store in Qdrant for vector search.
     """
     # Get the data transformer
     data_transformer = prepare_data_pipeline()
-    from adalflow.core.db import LocalDB
 
     # Save the documents to a local database
-    db = LocalDB("microsoft_lomps")
+    db = LocalDB("code_db")
     db.register_transformer(transformer=data_transformer, key="split_and_embed")
     db.load(documents)
     db.transform(key="split_and_embed")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     db.save_state(filepath=db_path)
+
+    # If using Qdrant, also store the transformed documents there
+    if use_qdrant:
+        transformed_docs = db.get_transformed_data("split_and_embed")
+        vector_size = configs["embedder"]["model_kwargs"]["dimensions"]
+        qdrant_client = initialize_qdrant("code_chunks", vector_size)
+        upload_to_qdrant(qdrant_client, "code_chunks", transformed_docs)
+
+    return db
 
 
 def chat_with_adalflow_lib():

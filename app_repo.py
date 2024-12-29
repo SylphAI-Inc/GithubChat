@@ -122,10 +122,9 @@ def init_rag(_repo_path: str):
     # Process repository files
     with st.spinner("Processing repository files..."):
         documents = process_repository_files(_repo_path)
-    
-    if not documents:
-        st.error("No documents found in the repository!")
-        return None
+        if not documents:
+            st.error("No documents found in the repository!")
+            return None
     
     # Initialize database with repository documents
     with st.spinner("Creating embeddings..."):
@@ -151,8 +150,8 @@ def init_rag(_repo_path: str):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         db.save_state(filepath=db_path)
     
-    # Create RAG instance with repository database
-    return RAG(index_path=db_path)
+    # Create RAG instance with repository database using code analysis prompt
+    return RAG(index_path=db_path, prompt_type="code_analysis")
 
 def extract_class_name_from_query(query: str) -> str:
     """Extract class name from a query about a class."""

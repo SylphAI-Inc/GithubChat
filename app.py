@@ -17,8 +17,8 @@ def init_rag():
     # Initialize test database with example data
     initialize_test_database(db_path)
     
-    # Create RAG instance with test database
-    return RAG(index_path=db_path)
+    # Create RAG instance with test database using general QA prompt
+    return RAG(index_path=db_path, prompt_type="general_qa")
 
 st.title("RAG Chat Interface")
 st.caption("Test data includes information about Alice (software engineer), Bob (data scientist), and the company cafeteria.")
