@@ -68,7 +68,7 @@ class DatabaseManager:
             self.logger.error(f"Failed to create repository structure: {e}")
             raise
 
-    def create_local_db(self) -> LocalDB:
+    def _create_local_db(self) -> LocalDB:
         """
         Create a new LocalDB at the specified file path.
 
@@ -123,7 +123,7 @@ class DatabaseManager:
             self.logger.info("Database not found. Creating a new one.")
 
         # Create a new database if it doesn't exist or loading fails
-        self.create_local_db()
+        self._create_local_db()
         return True
 
     def transform_documents_and_save(self, documents: List[Document], pipeline: Sequential):
