@@ -1,15 +1,48 @@
 import os
 from rag import RAG
 import tempfile
-from data_pipeline import create_sample_documents, transform_documents_and_save_to_db
+from data_pipeline import create_sample_documents
+from adalflow.core.types import List, Document
+from data_pipeline import create_pipeline
+from adalflow.core.db import LocalDB
+
+from logging_config import (
+    log_info,
+    log_init,
+    log_success,
+    log_error
+)
 
 
 def initialize_test_database(db_path: str):
-    """Initialize database with sample documents."""
-    documents = create_sample_documents()
-    # transform_documents_and_save_to_db(documents, db_path)
-    transform_documents_and_save_to_db(documents, db_path)
-    return db_path
+    documents: List[Document] = create_sample_documents()
+
+    log_info("Starting transformation of documents.")
+    # Get the data transformer
+    data_transformer = create_pipeline()
+
+    try:
+        # Initialize the local database
+        db = LocalDB("code_db")
+        log_init("LocalDB", {"name": "code_db"})
+
+        # Register and apply the transformer
+        db.register_transformer(
+            transformer=data_transformer, key="split_and_embed")
+        db.load(documents)
+        db.transform(key="split_and_embed")
+        log_success("Documents transformed successfully.")
+
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+        # Save the transformed data to the database
+        db.save_state(filepath=db_path)
+        log_success(f"Database saved to {db_path}")
+        return db
+
+    except Exception as e:
+        log_error(f"Failed to transform and save documents: {e}")
 
 
 def main():
