@@ -66,7 +66,7 @@ configs = {
         },
     },
     "retriever": {
-        "top_k": 20,
+        "top_k": 20
     },
     "generator": {
         "model_client": OpenAIClient,
