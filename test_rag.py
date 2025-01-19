@@ -47,7 +47,7 @@ def initialize_test_database(db_path: str):
 
 def main():
     # Set your OpenAI API key
-    os.environ["OPENAI_API_KEY"] = "Your OpenAI API key"
+    # os.environ["OPENAI_API_KEY"] = "Your OpenAI API key"
 
     # Create a temporary directory for the database
     temp_dir = tempfile.mkdtemp()
