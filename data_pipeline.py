@@ -1,7 +1,10 @@
 import os
 import subprocess
 import re
-import glob
+# import glob
+from pathlib import Path
+from typing import Optional
+
 
 import adalflow as adal
 from pipeline_transformers import L2Norm
@@ -17,6 +20,7 @@ from logging_config import (
     log_warning,
     log_error,
     log_debug,
+    LoggerUtility
 )
 
 
@@ -162,83 +166,119 @@ def download_github_repo(repo_url: str, local_path: str) -> str:
         return error_msg
 
 
-def documents_to_adal_documents(path: str) -> List[Document]:
+def documents_to_adal_documents(
+    path: str,
+    code_extensions: Optional[List[str]] = None,
+    doc_extensions: Optional[List[str]] = None,
+    ignored_paths: Optional[List[str]] = None
+) -> List[Document]:
     """
-    Recursively read all documents in a directory, log their directory structure, 
-    and return a list of Document objects with metadata.
+    Recursively reads all documents from a given directory path, ignoring specified directories,
+    and returns a list of Document objects with detailed logging.
 
-    :param path: The root directory path from which to read documents.
-    :return: A list of Document objects representing the files discovered in the provided directory.
-    :raises Exception: If there is an error reading any of the files.
+    Args:
+        path (str): The root directory path to read documents from.
+        code_extensions (List[str], optional): List of code file extensions to include.
+            Defaults to ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs'].
+        doc_extensions (List[str], optional): List of document file extensions to include.
+            Defaults to ['.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.toml'].
+        ignored_paths (List[str], optional): List of directory names to ignore.
+            Defaults to ['.git', '__pycache__', '.vscode', '.venv', 'node_modules', '.streamlit'].
+
+    Returns:
+        List[Document]: A list of Document objects representing the files.
+
+    Raises:
+        TypeError: If `path` is not a string.
+        Exception: If traversal fails.
     """
-    log_info(f"Reading all documents from path: {path}")
-    documents = []
-    # File extensions to look for, prioritizing code files
-    code_extensions = ['.py', '.js', '.ts',
-                       '.java', '.cpp', '.c', '.go', '.rs']
-    doc_extensions = ['.md', '.txt', '.rst', '.json', '.yaml', '.yml']
+    if not isinstance(path, str):
+        log_error(f"Invalid path type: {type(path)}. Expected str.")
+        raise TypeError("Path must be a string.")
 
-    # Process code files first
-    for ext in code_extensions:
-        files = glob.glob(f"{path}/**/*{ext}", recursive=True)
-        for file_path in files:
-            if '.venv' in file_path or 'node_modules' in file_path:
-                log_debug(f"Ignored path: {file_path}")
-                continue
+    # Set default extensions if not provided
+    code_extensions = code_extensions or [
+        '.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs']
+    doc_extensions = doc_extensions or [
+        '.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.toml']
+    ignored_paths = ignored_paths or [
+        '.git', '__pycache__', '.vscode', '.venv', 'node_modules', '.streamlit']
+
+    documents: List[Document] = []
+    root_path = Path(path)
+
+    log_info(f"Starting to read documents from: {root_path}")
+
+    def process_file(file_path: str, relative_path: str, is_code: bool) -> None:
+        """
+        Process an individual file and add it to the documents list.
+
+        Args:
+            file_path (str): The full path to the file.
+            relative_path (str): The path relative to the root directory.
+            is_code (bool): Indicates whether the file is a code file.
+        """
+        try:
+            path_obj = Path(file_path)
+            encoding = 'utf-8'
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    relative_path = os.path.relpath(file_path, path)
+                content = path_obj.read_text(encoding=encoding)
+                log_debug(
+                    f"Read file {file_path} with encoding {encoding}.")
+            except UnicodeDecodeError:
+                log_warning(f"UnicodeDecodeError for file {
+                            file_path}. Trying 'latin1' encoding.")
+                encoding = 'latin1'
+                content = path_obj.read_text(encoding=encoding)
+                log_debug(
+                    f"Read file {file_path} with fallback encoding {encoding}.")
+            # add other encodings later!
 
-                    # Determine if this is an implementation file
-                    is_implementation = (
-                        not relative_path.startswith('test_') and
-                        not relative_path.startswith('app_') and
-                        'test' not in relative_path.lower()
-                    )
+            is_implementation = (
+                not relative_path.startswith('test_')
+                and not relative_path.startswith('app_')
+                and 'test' not in relative_path.lower()
+            )
 
-                    doc = Document(
-                        text=content,
-                        meta_data={
-                            "file_path": relative_path,
-                            "type": ext[1:],
-                            "is_code": True,
-                            "is_implementation": is_implementation,
-                            "title": relative_path
-                        }
-                    )
-                    documents.append(doc)
-                    log_debug(f"Added document: {relative_path}")
-            except Exception as e:
-                log_error(f"Error reading {file_path}: {e}")
+            extension = path_obj.suffix[1:]  # Remove the dot
+            file_stat = os.stat(file_path)
+            metadata = {
+                "file_path": relative_path,
+                "type": extension,
+                "is_code": is_code,
+                "is_implementation": is_implementation,
+                "title": path_obj.name,
+                "file_size": file_stat.st_size,
+                "line_count": len(content.splitlines()),
+            }
 
-    # Then process documentation files
-    for ext in doc_extensions:
-        files = glob.glob(f"{path}/**/*{ext}", recursive=True)
-        for file_path in files:
-            if '.venv' in file_path or 'node_modules' in file_path:
-                log_debug(f"Ignored path: {file_path}")
-                continue
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    relative_path = os.path.relpath(file_path, path)
-                    doc = Document(
-                        text=content,
-                        meta_data={
-                            "file_path": relative_path,
-                            "type": ext[1:],
-                            "is_code": False,
-                            "is_implementation": False,
-                            "title": relative_path
-                        }
-                    )
-                    documents.append(doc)
-                    log_debug(f"Added document: {relative_path}")
-            except Exception as e:
-                log_error(f"Error reading {file_path}: {e}")
+            doc = Document(
+                text=content,
+                meta_data=metadata
+            )
+            documents.append(doc)
+            log_debug(f"Processed file {file_path} into Document with title '{
+                      doc.meta_data['title']}'")
+        except Exception as e:
+            log_error(f"Error processing file {file_path}: {e}")
 
-    log_success(f"Total documents found: {len(documents)}")
+    try:
+        # Define the combined list of extensions to include
+        include_extensions = code_extensions + doc_extensions
+
+        LoggerUtility.traverse_and_log(
+            base_path=root_path,
+            ignored_paths=ignored_paths,
+            include_extensions=include_extensions,
+            process_file_callback=process_file
+        )
+
+        log_info(f"Completed processing. Total documents collected: {
+                 len(documents)}")
+    except Exception as e:
+        log_error(f"Error during traversal and processing: {e}")
+        raise e
+
     return documents
 
 
