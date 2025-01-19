@@ -1,0 +1,210 @@
+Context 1:
+File Path: README.md
+File Size: 3074 bytes
+Line Count: 133 lines
+Content:
+questions
+
+2. **Repository Analysis (app_repo.py)**
+   - Enter your repository path
+   - Click "Load Repository"
+   - Ask questions about classes, functions, or code structure
+   - View implementation details in expandable sections
+
+## Security Note
+
+- Never commit your `.streamlit/secrets.toml` file
+- Add it to your `.gitignore`
+- Keep your API key secure
+
+## Example Queries
+
+- "What does the RAG class do?"
+- "Show me the implementation of the Memory class"
+- "How is data processing handled?"
+- "Explain the initialization process"
+
+## TODO
+
+- [ ] Add evaluation metrics
+- [ ] Improve the embedding model
+- [ ] Improve the text splitter and chunking
+- [ 
+----------------------------------------
+Context 2:
+File Path: config.py
+File Size: 2598 bytes
+Line Count: 84 lines
+Content:
+functionality first
+- Highlight critical methods and their roles
+- Keep explanations clear and to the point
+
+When asked about a specific class or function:
+1. Start with a one-sentence overview
+2. List the key methods and their purposes
+3. Explain the main functionality
+4. Keep the explanation focused and brief
+
+Previous conversation history is provided to maintain context of the discussion.
+Use the conversation history to provide more relevant and contextual answers about the code.
+
+Output JSON format:
+{
+    "answer": "Concise explanation of the code implementation",
+}""",
+
+    "general_qa": r"""
+You are a helpful assistant answering questions about provided documents.
+
+Your task is to:
+1. Answer questions based on 
+----------------------------------------
+Context 3:
+File Path: data_pipeline.py
+File Size: 10144 bytes
+Line Count: 283 lines
+Content:
+1: Process a GitHub repository
+    print("Example 1: Processing a GitHub repository")
+    repo_url = "https://github.com/microsoft/LMOps"
+    local_path = os.path.join(get_adalflow_default_root_path(), "LMOps")
+    
+    # Download the repository
+    print("\nDownloading repository...")
+    result = download_github_repo(repo_url, local_path)
+    print(result)
+    
+    # Read documents from a specific directory
+    print("\nReading documents...")
+    target_path = os.path.join(local_path, "prompt_optimization")
+    documents = read_all_documents(target_path)
+    print(f"Found {len(documents)} documents")
+    
+    # 
+----------------------------------------
+Context 4:
+File Path: README.md
+File Size: 3074 bytes
+Line Count: 133 lines
+Content:
+# RAG Code Assistant
+
+A Retrieval-Augmented Generation (RAG) system for analyzing and understanding code repositories. The system provides both a command-line interface and a web UI for interacting with your codebase. In this repo there are two versions of the RAG system:
+
+1. `app.py` - a demo version that uses test data
+2. `app_repo.py` - a version that uses a real codebase
+
+It is still a work in progress and lots of things can be improved.
+
+# Repository Architecture
+
+This document explains how the different components of the RAG (Retrieval-Augmented Generation) system work together.
+
+## File Structure and Dependencies
+
+```mermaid
+graph TD
+    config[config.py] --> rag[rag.py]
+  
+----------------------------------------
+Context 5:
+File Path: README.md
+File Size: 3074 bytes
+Line Count: 133 lines
+Content:
+of the RAG (Retrieval-Augmented Generation) system work together.
+
+## File Structure and Dependencies
+
+```mermaid
+graph TD
+    config[config.py] --> rag[rag.py]
+    config --> data_pipeline[data_pipeline.py]
+    data_pipeline --> test_rag[test_rag.py]
+    data_pipeline --> app_repo[app_repo.py]
+    rag --> app[app.py]
+    rag --> app_repo
+    test_rag --> app
+```
+
+## Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Input
+        A[User Query] --> B[Streamlit Interface]
+        C[Repository/Documents] --> D[Document Processor]
+    end
+
+    subgraph Processing
+      
+----------------------------------------
+Context 6:
+File Path: README.md
+File Size: 3074 bytes
+Line Count: 133 lines
+Content:
+  C[Repository/Documents] --> D[Document Processor]
+    end
+
+    subgraph Processing
+        B --> E[RAG System]
+        D --> F[Text Splitter]
+        F --> G[Embedder]
+        G --> H[FAISS Index]
+        H --> E
+    end
+
+    subgraph Output
+        E --> I[Response]
+        E --> J[Context]
+    
+----------------------------------------
+Context 7:
+File Path: data_pipeline.py
+File Size: 10144 bytes
+Line Count: 283 lines
+Content:
+They also have a great coffee machine that makes perfect lattes.
+        Many employees enjoy their lunch breaks in the outdoor seating area."""
+    ]
+    
+    return [Document(text=text, meta_data={"title": f"doc_{i}"}) 
+            for i, text in enumerate(sample_texts)]
+
+
+if __name__ == "__main__":
+    from adalflow.utils import get_logger
+
+    adal.setup_env()
+
+    # Example 1: Process a GitHub repository
+    print("Example 1: Processing a GitHub repository")
+    repo_url = "https://github.com/microsoft/LMOps"
+ 
+----------------------------------------
+Context 8:
+File Path: pyproject.toml
+File Size: 374 bytes
+Line Count: 17 lines
+Content:
+[tool.poetry]
+name = "github-chat"
+version = "0.1.0"
+description = ""
+authors = ["Li Yin <li.yin.gravity@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+adalflow = { extras = ["openai"], version = "^0.2.6" }
+faiss-cpu = "^1.9.0.post1"
+streamlit = "^1.31.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+----------------------------------------
