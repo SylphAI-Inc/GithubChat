@@ -2,22 +2,16 @@ from logging_config import logger, LoggerUtility
 import os
 import sys
 from pathlib import Path
-
 from adalflow.core.component import Component
 from adalflow.core.types import List, Document
 from adalflow.utils import EntityMapping
-
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
-
 # Change to this ordering of imports if stuff breaks
 # parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
 # if parent_dir not in sys.path:
 #     sys.path.insert(0, parent_dir)
-
 # from logging_config import logger, LoggerUtility
 
 
@@ -33,7 +27,6 @@ class DocumentToAdalDocument(Component):
                  ignored_paths: List[str] = None):
         """
         Initializes the DocumentToAdalDocument component with optional configurations.
-
         Args:
             code_extensions (List[str], optional): List of code file extensions to include.
                 Defaults to ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs'].
@@ -54,13 +47,10 @@ class DocumentToAdalDocument(Component):
         """
         Recursively reads all documents from the given directory path, ignoring specified directories,
         and returns a list of Document objects.
-
         Args:
             path (str): The root directory path to read documents from.
-
         Returns:
             List[Document]: A list of Document objects representing the files.
-
         Raises:
             TypeError: If `path` is not a string.
             Exception: If traversal fails.
@@ -68,7 +58,6 @@ class DocumentToAdalDocument(Component):
         if not isinstance(path, str):
             logger.error(f"Invalid path type: {type(path)}. Expected str.")
             raise TypeError("Path must be a string.")
-
         documents: List[Document] = []
         root_path = Path(path)
         logger.info(f"Reading all documents from repository: {root_path}")
@@ -76,7 +65,6 @@ class DocumentToAdalDocument(Component):
         def process_file(file_path: str, relative_path: str, is_code: bool) -> None:
             """
             Process an individual file and add it to the documents list.
-
             Args:
                 file_path (str): The full path to the file.
                 relative_path (str): The path relative to the root directory.
@@ -91,16 +79,13 @@ class DocumentToAdalDocument(Component):
                     logger.warning(f"UnicodeDecodeError for file {
                                    file_path}. Trying 'latin1' encoding.")
                     content = path_obj.read_text(encoding='latin1')
-
                 is_implementation = (
                     not relative_path.startswith('test_')
                     and not relative_path.startswith('app_')
                     and 'test' not in relative_path.lower()
                 )
-
                 extension = path_obj.suffix[1:]  # Remove the dot
                 title = path_obj.name
-
                 doc = Document(
                     text=content,
                     meta_data={
@@ -118,7 +103,6 @@ class DocumentToAdalDocument(Component):
                              doc.meta_data['title']}'")
             except Exception as e:
                 logger.error(f"Error reading file {file_path}: {e}")
-
         try:
             # Collect all relevant extensions
             extensions = self.code_extensions + self.doc_extensions
@@ -130,16 +114,13 @@ class DocumentToAdalDocument(Component):
         except Exception as e:
             logger.error(f"Error during traversal and processing: {e}")
             raise e
-
         return documents
 
     def __call__(self, path: str) -> List[Document]:
         """
         Allows the component to be called directly like a function.
-
         Args:
             path (str): The root directory path to read documents from.
-
         Returns:
             List[Document]: A list of Document objects representing the files.
         """
@@ -147,5 +128,4 @@ class DocumentToAdalDocument(Component):
 
 
 EntityMapping.register("DocumentToAdalDocument", DocumentToAdalDocument)
-
 __all__ = ["DocumentToAdalDocument"]
