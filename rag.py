@@ -313,3 +313,6 @@ if __name__ == "__main__":
         except Exception as e:
             log_error(f"An error occurred while processing the query: {e}")
             print(f"An error occurred while processing the query: {e}")
+
+
+__all__ = ["Memory", "RAG"]
