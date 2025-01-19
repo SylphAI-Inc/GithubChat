@@ -83,6 +83,7 @@ def get_caller_info():
     line_number = frame.lineno
     return file_name, line_number
 
+
 def log_init(component_name: str, config: dict):
     """
     Logs an initialization message with caller information.
@@ -94,7 +95,9 @@ def log_init(component_name: str, config: dict):
     file_name, line_number = get_caller_info()
     serializable_config = make_serializable(config)
     pretty_config = json.dumps(serializable_config, indent=4)
-    logger.info(f"✨ [{file_name}:{line_number}] {component_name} initialized with configuration:\n{pretty_config}")
+    logger.info(f"✨ [{file_name}:{line_number}] {
+                component_name} initialized with configuration:\n{pretty_config}")
+
 
 def log_info(message: str):
     """
@@ -103,12 +106,14 @@ def log_info(message: str):
     file_name, line_number = get_caller_info()
     logger.info(f"🔍 [{file_name}:{line_number}] {message}")
 
+
 def log_success(message: str):
     """
     Logs a success message with dynamic caller information.
     """
     file_name, line_number = get_caller_info()
     logger.info(f"✅ [{file_name}:{line_number}] {message}")
+
 
 def log_warning(message: str):
     """
@@ -117,12 +122,14 @@ def log_warning(message: str):
     file_name, line_number = get_caller_info()
     logger.warning(f"⚠️ [{file_name}:{line_number}] {message}")
 
+
 def log_error(message: str):
     """
     Logs an error message with dynamic caller information.
     """
     file_name, line_number = get_caller_info()
     logger.error(f"❌ [{file_name}:{line_number}] {message}")
+
 
 def log_debug(message: str):
     """
@@ -162,7 +169,7 @@ class LoggerUtility:
                 ignored in os.path.join(root, d) for ignored in ignored_paths)]
 
             # Calculate indentation based on directory depth
-            level = root.replace(base_path, '').count(os.sep)
+            level = str(root).replace(str(base_path), '').count(os.sep)
             indent = '|   ' * level
             base_name = os.path.basename(root) or "project_root"
 
@@ -202,6 +209,3 @@ __all__ = [
     "log_error",
     "log_debug",
 ]
-
-
-
