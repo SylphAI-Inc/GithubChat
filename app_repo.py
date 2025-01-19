@@ -9,8 +9,7 @@ from logging_config import (
     log_success,
     log_warning,
     log_error,
-    log_debug,
-    logger
+    log_debug
 )
 from data_base_manager import DatabaseManager
 from adalflow.core.types import Document, List
@@ -46,7 +45,7 @@ def init_rag(_repo_path: str) -> Optional[RAG]:
         # Initialize database manager to prevent redundant computation by checking
         # for pickled repos
         # We'll handle logging separately
-        db_manager = DatabaseManager(repo_name=repo_name, logger=logger)
+        db_manager = DatabaseManager(repo_name=repo_name)
 
         # Load or create the database
         try:
@@ -85,9 +84,6 @@ def init_rag(_repo_path: str) -> Optional[RAG]:
                         st.error(
                             "An error occurred during transformation and saving.")
                         sys.exit(1)
-        else:
-            log_info(
-                "Using existing database. Skipping transformations to avoid redundant API calls.")
 
         # Initialize RAG instance with database
         try:
@@ -103,20 +99,6 @@ def init_rag(_repo_path: str) -> Optional[RAG]:
         log_error(f"Failed to initialize RAG: {e}")
         st.error("An error occurred during RAG initialization.")
         sys.exit(1)
-
-
-# Function: Handle repository loading
-
-def handle_load_repository(repo_path):
-    if os.path.exists(repo_path):
-        rag = init_rag(repo_path)
-        st.session_state.rag = rag
-        if rag:
-            log_success(f"Repository loaded successfully from: {repo_path}")
-            st.success(f"Repository loaded successfully from: {repo_path}")
-    else:
-        log_warning(f"Invalid repository path provided: {repo_path}")
-        st.error("Invalid repository path!")
 
 
 # Function: Display chat messages
@@ -165,6 +147,17 @@ def handle_chat_input():
 
 # Function: Display relevant context and response
 def display_context_and_response(retriever_output, prompt, response):
+
+    # print(f"Doc Indices {len(retriever_output.doc_indices)}: {
+    #       retriever_output.doc_indices}")
+    # print("=" * 20)
+    # print(f"Doc Scores {len(retriever_output.doc_scores)}: {
+    #       retriever_output.doc_scores}")
+    # print("=" * 20)
+    # print(f"Documents {len(retriever_output.documents)}: {
+    #       retriever_output.documents}")
+    # print("=" * 20)
+
     implementation_docs = [
         doc for doc in retriever_output.documents if doc.meta_data.get("is_implementation", False)
     ]
@@ -175,6 +168,7 @@ def display_context_and_response(retriever_output, prompt, response):
     file_type = doc.meta_data.get("type", "python")
 
     class_name = extract_class_name_from_query(prompt)
+
     if class_name and file_type == "python":
         class_context = extract_class_definition(context, class_name)
         if class_context != context:
@@ -214,7 +208,10 @@ def main():
 
     # Event: Load repository
     if st.button("Load Repository"):
-        handle_load_repository(repo_path)
+        st.session_state.rag = init_rag(repo_path)
+
+        if st.session_state.rag:
+            st.success(f"Repository loaded successfully from: {repo_path}")
 
     # Event: Clear chat
     if st.button("Clear Chat"):
