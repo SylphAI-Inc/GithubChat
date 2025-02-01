@@ -2,6 +2,7 @@ import os
 import logging
 import inspect
 import json
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -138,8 +139,6 @@ def log_debug(message: str):
     file_name, line_number = get_caller_info()
     logger.debug(f"🐛 [{file_name}:{line_number}] {message}")
 
-# LoggerUtility remains unchanged
-
 
 class LoggerUtility:
     """Utility class for advanced logging and directory traversal."""
@@ -151,12 +150,11 @@ class LoggerUtility:
 
         Args:
             base_path (str): The root path of the directory to traverse.
-            ignored_paths (list): A list of paths to ignore.
-            include_extensions (list): A list of file extensions to include.
+            ignored_paths (list): A list of directory names or paths to ignore.
+            include_extensions (list): A list of file extensions to include (e.g., ['.py', '.md']).
             process_file_callback (callable): A callback to process each included file.
-                                              It should accept arguments (file_path, relative_path, is_code).
+                                              It should accept arguments (file_path, relative_path).
         """
-        # Use the global logger instead of LoggerUtility.logger
         logger = logging.getLogger(__name__)
         logger.info("Directory tree for %s:", base_path)
         logger.info("project_root/")
@@ -166,10 +164,14 @@ class LoggerUtility:
         for root, dirs, files in os.walk(base_path, topdown=True):
             # Filter out ignored directories
             dirs[:] = [d for d in dirs if not any(
-                ignored in os.path.join(root, d) for ignored in ignored_paths)]
+                ignored.lower() == d.lower() for ignored in ignored_paths)]
 
             # Calculate indentation based on directory depth
-            level = str(root).replace(str(base_path), '').count(os.sep)
+            relative_root = os.path.relpath(root, base_path)
+            if relative_root == ".":
+                level = 0
+            else:
+                level = relative_root.count(os.sep)
             indent = '|   ' * level
             base_name = os.path.basename(root) or "project_root"
 
@@ -183,16 +185,16 @@ class LoggerUtility:
                 relative_path = os.path.relpath(file_path, base_path)
                 is_last = (i == len(files) - 1)
                 prefix = '└── ' if is_last else '├── '
-                is_code = os.path.splitext(name)[1] in include_extensions
+                extension = Path(name).suffix.lower()
 
-                if any(ignored in relative_path for ignored in ignored_paths):
-                    logger.info(f"{subindent}{prefix}[IGNORED] {name}")
-                elif is_code:
+                if any(ignored.lower() == os.path.basename(relative_path).lower() for ignored in ignored_paths):
+                    logger.info(f"{subindent}{prefix}[EXCLUDED] {name}")
+                elif extension in include_extensions:
                     logger.info(f"{subindent}{prefix}[INCLUDED] {name}")
-                    process_file_callback(file_path, relative_path, is_code)
+                    process_file_callback(file_path, relative_path)
                     total_files += 1
                 else:
-                    logger.info(f"{subindent}{prefix}[IGNORED] {name}")
+                    logger.info(f"{subindent}{prefix}[EXCLUDED] {name}")
 
         logger.info("Traversal complete. Processed %d files.", total_files)
 

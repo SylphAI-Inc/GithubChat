@@ -1,7 +1,6 @@
 import os
 import subprocess
 import re
-# import glob
 from pathlib import Path
 from typing import Optional
 
@@ -170,18 +169,23 @@ def documents_to_adal_documents(
     path: str,
     code_extensions: Optional[List[str]] = None,
     doc_extensions: Optional[List[str]] = None,
+    config_extensions: Optional[List[str]] = None,
     ignored_paths: Optional[List[str]] = None
 ) -> List[Document]:
     """
     Recursively reads all documents from a given directory path, ignoring specified directories,
-    and returns a list of Document objects with detailed logging.
+    and returns a list of Document objects. Each Document is categorized as either code,
+    documentation, or configuration. Additionally, code files are labeled as either
+    test or implementation.
 
     Args:
         path (str): The root directory path to read documents from.
         code_extensions (List[str], optional): List of code file extensions to include.
             Defaults to ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs'].
-        doc_extensions (List[str], optional): List of document file extensions to include.
-            Defaults to ['.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.toml'].
+        doc_extensions (List[str], optional): List of documentation file extensions to include.
+            Defaults to ['.md', '.txt', '.rst'].
+        config_extensions (List[str], optional): List of config file extensions to include.
+            Defaults to ['.json', '.yaml', '.yml', '.toml'].
         ignored_paths (List[str], optional): List of directory names to ignore.
             Defaults to ['.git', '__pycache__', '.vscode', '.venv', 'node_modules', '.streamlit'].
 
@@ -198,28 +202,34 @@ def documents_to_adal_documents(
 
     # Set default extensions if not provided
     code_extensions = code_extensions or [
-        '.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs']
+        '.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs'
+    ]
     doc_extensions = doc_extensions or [
-        '.md', '.txt', '.rst', '.json', '.yaml', '.yml', '.toml']
+        '.md', '.txt', '.rst'
+    ]
+    config_extensions = config_extensions or [
+        '.json', '.yaml', '.yml', '.toml'
+    ]
     ignored_paths = ignored_paths or [
-        '.git', '__pycache__', '.vscode', '.venv', 'node_modules', '.streamlit']
+        '.git', '__pycache__', '.vscode', '.venv', 'node_modules', '.streamlit'
+    ]
 
     documents: List[Document] = []
     root_path = Path(path)
 
     log_info(f"Starting to read documents from: {root_path}")
 
-    def process_file(file_path: str, relative_path: str, is_code: bool) -> None:
+    def process_file(file_path: str, relative_path: str) -> None:
         """
         Process an individual file and add it to the documents list.
 
         Args:
             file_path (str): The full path to the file.
             relative_path (str): The path relative to the root directory.
-            is_code (bool): Indicates whether the file is a code file.
         """
         try:
             path_obj = Path(file_path)
+            extension = path_obj.suffix.lower()  # e.g. ".py"
             encoding = 'utf-8'
             try:
                 content = path_obj.read_text(encoding=encoding)
@@ -233,28 +243,45 @@ def documents_to_adal_documents(
                 log_debug(
                     f"Read file {file_path} with fallback encoding {encoding}.")
             # add other encodings later!
+            print(f"Extension: {extension}")
 
-            is_implementation = (
-                not relative_path.startswith('test_')
-                and not relative_path.startswith('app_')
-                and 'test' not in relative_path.lower()
-            )
+            if extension in code_extensions:
+                category = "code"
+            elif extension in doc_extensions:
+                category = "documentation"
+            elif extension in config_extensions:
+                category = "configuration"
+            else:
+                # Skip or label as "other" if you don’t want to exclude them
+                log_debug(f"Skipping file {
+                          file_path} (extension not recognized).")
+                return
 
-            extension = path_obj.suffix[1:]  # Remove the dot
+            # If this is code, decide if it's test or implementation
+            if category == "code":
+                # 1 for test, 0 for implementation
+                code_state = int('test' in relative_path.lower()
+                                 or relative_path.startswith('test_'))
+            else:
+                # -1 for non-code categories
+                code_state = -1
+
             file_stat = os.stat(file_path)
-            metadata = {
+
+            # Construct metadata with a single state representation
+            meta_data = {
                 "file_path": relative_path,
-                "type": extension,
-                "is_code": is_code,
-                "is_implementation": is_implementation,
+                "file_extension": extension.strip('.'),
+                "category": category,
+                "code_state": code_state,  # 1 = test, 0 = implementation, -1 = non-code
                 "title": path_obj.name,
                 "file_size": file_stat.st_size,
-                "line_count": len(content.splitlines()),
+                "line_count": len(content.splitlines())
             }
 
             doc = Document(
                 text=content,
-                meta_data=metadata
+                meta_data=meta_data
             )
             documents.append(doc)
             log_debug(f"Processed file {file_path} into Document with title '{
@@ -263,14 +290,14 @@ def documents_to_adal_documents(
             log_error(f"Error processing file {file_path}: {e}")
 
     try:
-        # Define the combined list of extensions to include
-        include_extensions = code_extensions + doc_extensions
+        # Combine all extensions for the traverser so it knows which to include
+        all_extensions = code_extensions + doc_extensions + config_extensions
 
         LoggerUtility.traverse_and_log(
             base_path=root_path,
             ignored_paths=ignored_paths,
-            include_extensions=include_extensions,
-            process_file_callback=process_file
+            include_extensions=all_extensions,
+            process_file_callback=lambda fp, rp: process_file(fp, rp)
         )
 
         log_info(f"Completed processing. Total documents collected: {

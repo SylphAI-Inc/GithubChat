@@ -107,7 +107,10 @@ class DocumentToAdalDocument(Component):
             # Collect all relevant extensions
             extensions = self.code_extensions + self.doc_extensions
             LoggerUtility.traverse_and_log(
-                root_path, self.ignored_paths, extensions, process_file
+                base_path=root_path,
+                ignored_paths=self.ignored_paths,
+                include_extensions=extensions,
+                process_file_callback=process_file
             )
             logger.info(f"Processed {len(documents)
                                      } documents from path {root_path}.")

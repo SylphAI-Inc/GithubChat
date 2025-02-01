@@ -239,6 +239,7 @@ class RAG(Component):
             search_query = query
 
         # The retriever currently returns a list with one element (RetrieverOutput).
+        # INVESTIGATE Changing the retriever source code later. The output is already a collection of top k contexts.
         # We only handle a single output here, so we take the [0] index.
         try:
             retriever_output = self.retriever(search_query)[0]
