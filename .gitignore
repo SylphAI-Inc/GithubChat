@@ -45,3 +45,6 @@ __pycache__/
 
 # ignore adalflow cache
 /adalflow
+
+# Ignore test files
+rag_logs.md
