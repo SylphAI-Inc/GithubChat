@@ -27,7 +27,6 @@ class Memory(DataComponent):
         self.current_conversation = Conversation()
 
     def call(self) -> List[DialogTurn]:
-
         all_dialog_turns = self.current_conversation.dialog_turns
 
         return all_dialog_turns
@@ -90,7 +89,6 @@ class RAG(adal.Component):
     If you want to load a new repo. You need to call prepare_retriever(repo_url_or_path) first."""
 
     def __init__(self):
-
         super().__init__()
 
         # Initialize embedder, generator, and db_manager
@@ -215,8 +213,7 @@ class RAG(adal.Component):
     def _format_doc_paths(self, documents: List[Any]) -> str:
         """Helper to format document paths for logging"""
         return "\n  ".join(
-            f"- {doc.meta_data.get('file_path', 'unknown')}"
-            for doc in documents
+            f"- {doc.meta_data.get('file_path', 'unknown')}" for doc in documents
         )
 
 
