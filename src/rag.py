@@ -1,5 +1,7 @@
-from typing import Any, List
+from typing import Any, List, Tuple, Optional
 from uuid import uuid4
+import os
+from datetime import datetime
 
 import adalflow as adal
 from adalflow.core.types import (
@@ -16,6 +18,7 @@ from adalflow.core.component import DataComponent
 from config import configs
 from src.data_pipeline import DatabaseManager
 from adalflow.utils import printc
+from dataclasses import dataclass, field
 
 
 class Memory(DataComponent):
@@ -39,6 +42,14 @@ class Memory(DataComponent):
         )
 
         self.current_conversation.append_dialog_turn(dialog_turn)
+
+
+@dataclass
+class RAGAnswer(adal.DataClass):
+    rationale: str = field(default="", metadata={"desc": "Rationale for the answer."})
+    answer: str = field(default="", metadata={"desc": "Answer to the user query."})
+
+    __output_fields__ = ["rationale", "answer"]
 
 
 system_prompt = r"""
@@ -75,16 +86,6 @@ Content: {{context.text}}
 <END_OF_USER_PROMPT>
 """
 
-from dataclasses import dataclass, field
-
-
-@dataclass
-class RAGAnswer(adal.DataClass):
-    rationale: str = field(default="", metadata={"desc": "Rationale for the answer."})
-    answer: str = field(default="", metadata={"desc": "Answer to the user query."})
-
-    __output_fields__ = ["rationale", "answer"]
-
 
 class RAG(adal.Component):
     __doc__ = """RAG with one repo.
@@ -119,6 +120,7 @@ class RAG(adal.Component):
             model_kwargs=configs["generator"]["model_kwargs"],
             output_processors=data_parser,
         )
+        self.previous_retrieved_documents = None
 
     def initialize_db_manager(self):
         self.db_manager = DatabaseManager()
@@ -136,15 +138,59 @@ class RAG(adal.Component):
             document_map_func=lambda doc: doc.vector,
         )
 
-    def call(self, query: str) -> Any:
+    def is_clarification_query(self, query: str) -> bool:
+        """
+        Determines if the current query is a clarification of a previous query.
+        """
+        if not self.memory():
+            return False
 
-        retrieved_documents = self.retriever(query)
+        clarification_prompt = f"""
+        You are a clarification detector. Analyze if the query is a follow-up or clarification of the previous conversation.
+        Your response should include:
+        - A rationale explaining your reasoning
+        - A clear True/False answer
 
-        # fill in the document
-        retrieved_documents[0].documents = [
-            self.transformed_docs[doc_index]
-            for doc_index in retrieved_documents[0].doc_indices
-        ]
+        Output your response in this format:
+            {{
+            "rationale": "Your step-by-step reasoning here",
+            "answer": "True or False"
+            }}
+
+        Conversation History:
+        {self.memory()}
+
+        Query:
+        {query}
+        """
+        response = self.generator(
+            prompt_kwargs={
+                "conversation_history": self.memory(),
+                "system_prompt": clarification_prompt,
+            },
+        )
+
+        is_clarification = "true" in response.data.answer.lower()
+        return is_clarification
+
+    def call(self, query: str) -> Tuple[Any, Any]:
+        previous_context = (
+            self.previous_retrieved_documents[0].documents
+            if self.previous_retrieved_documents
+            else None
+        )
+
+        is_clarification = self.is_clarification_query(query)
+
+        if is_clarification and self.previous_retrieved_documents:
+            retrieved_documents = self.previous_retrieved_documents
+        else:
+            retrieved_documents = self.retriever(query)
+            retrieved_documents[0].documents = [
+                self.transformed_docs[doc_index]
+                for doc_index in retrieved_documents[0].doc_indices
+            ]
+            self.previous_retrieved_documents = retrieved_documents
 
         printc(f"retrieved_documents: {retrieved_documents[0].documents}")
         printc(f"memory: {self.memory()}")
@@ -167,6 +213,13 @@ class RAG(adal.Component):
         self.memory.add_dialog_turn(user_query=query, assistant_response=final_response)
 
         return final_response, retrieved_documents
+
+    def _format_doc_paths(self, documents: List[Any]) -> str:
+        """Helper to format document paths for logging"""
+        return "\n  ".join(
+            f"- {doc.meta_data.get('file_path', 'unknown')}"
+            for doc in documents
+        )
 
 
 if __name__ == "__main__":
