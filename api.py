@@ -1,12 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import adalflow as adal
 from src.rag import RAG
-from typing import List, Optional
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from pydantic_models import *
 
 def load_environment():
     """Load environment variables from .env file if available, otherwise use system environment variables."""
@@ -58,26 +57,6 @@ try:
 except Exception as e:
     print(f"Error initializing RAG component: {e}")
     raise RuntimeError(f"Failed to initialize RAG component: {e}")
-
-class QueryRequest(BaseModel):
-    repo_url: str
-    query: str
-
-class DocumentMetadata(BaseModel):
-    file_path: str
-    type: str
-    is_code: bool = False
-    is_implementation: bool = False
-    title: str = ""
-
-class Document(BaseModel):
-    text: str
-    meta_data: DocumentMetadata
-
-class QueryResponse(BaseModel):
-    rationale: str
-    answer: str
-    contexts: List[Document]
 
 @app.post("/query", response_model=QueryResponse)
 async def query_repository(request: QueryRequest):
