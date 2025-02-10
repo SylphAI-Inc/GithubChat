@@ -11,7 +11,7 @@ Learn fast. The default repo is AdalFlow github repo.
 ## Project Structure
 ```
 .
-├── frontend/            # React frontend application
+├── frontend/           # React frontend application
 ├── src/                # Python backend code
 ├── api.py              # FastAPI server
 ├── app.py              # Streamlit application
@@ -91,7 +91,7 @@ Analyzes a GitHub repository based on a query.
 ```
 
 ## ROADMAP
-- [x] Clearyly structured RAG that can prepare a repo, persit from reloading, and answer questions.
+- [x] Clearly structured RAG that can prepare a repo, persit from reloading, and answer questions.
   - `DatabaseManager` in `src/data_pipeline.py` to manage the database.
   - `RAG` class in `src/rag.py` to manage the whole RAG lifecycle.
 
